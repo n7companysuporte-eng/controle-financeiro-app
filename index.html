@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Finance SaaS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Animations -->
+  <script src="https://unpkg.com/gsap@3/dist/gsap.min.js"></script>
+</head>
+
+<body class="bg-gradient-to-br from-green-600 to-yellow-400 min-h-screen flex justify-center">
+
+<div class="w-full max-w-md p-4 text-white">
+
+  <!-- HEADER -->
+  <h1 class="text-xl font-bold text-center mb-4">Finance SaaS</h1>
+
+  <!-- SALDO -->
+  <div class="bg-white text-black rounded-2xl p-5 shadow-xl mb-4">
+    <p class="text-sm text-gray-500">Saldo do mês</p>
+    <h2 id="balance" class="text-3xl font-bold text-green-600">R$ 0,00</h2>
+
+    <div class="flex gap-3 mt-4">
+      <button onclick="openModal('income')" class="flex-1 bg-green-600 text-white py-4 rounded-xl text-lg active:scale-95 transition flex justify-center items-center gap-2">
+        <i data-lucide="plus"></i> Receita
+      </button>
+      <button onclick="openModal('expense')" class="flex-1 bg-red-500 text-white py-4 rounded-xl text-lg active:scale-95 transition flex justify-center items-center gap-2">
+        <i data-lucide="minus"></i> Gasto
+      </button>
+    </div>
+
+    <p id="message" class="mt-3 text-center font-medium"></p>
+  </div>
+
+  <!-- LISTA -->
+  <div class="bg-white text-black rounded-2xl p-4 shadow mb-4">
+    <p class="font-semibold mb-2">Lançamentos</p>
+    <ul id="list" class="space-y-2 text-sm"></ul>
+  </div>
+
+  <!-- GRÁFICO -->
+  <div class="bg-white text-black rounded-2xl p-4 shadow">
+    <p class="font-semibold mb-2">Despesas por categoria</p>
+    <canvas id="chart"></canvas>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-end">
+  <div class="bg-white w-full rounded-t-3xl p-5 text-black">
+    <p id="modalTitle" class="font-bold mb-3"></p>
+
+    <input id="valueInput" type="number" placeholder="Valor"
+      class="w-full border rounded-xl p-3 mb-3">
+
+    <div id="categoryButtons" class="grid grid-cols-2 gap-2 mb-4"></div>
+
+    <button onclick="confirmAdd()"
+      class="w-full bg-green-600 text-white py-3 rounded-xl active:scale-95 transition">
+      Confirmar
+    </button>
+
+    <button onclick="closeModal()" class="w-full mt-2 text-gray-500">
+      Cancelar
+    </button>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+let items = [];
+let currentType = "";
+let selectedCategory = "";
+
+/* ===== CATEGORIAS ===== */
+const incomeCategories = [
+  "Salário",
+  "Renda Extra",
+  "Freelas",
+  "Comissões",
+  "Investimentos",
+  "Outros"
+];
+
+const expenseCategories = [
+  "Moradia",
+  "Alimentação",
+  "Transporte",
+  "Lazer",
+  "Assinaturas",
+  "Saúde",
+  "Educação",
+  "Compras",
+  "Outros"
+];
+
+/* ===== MENSAGENS ===== */
+const messages = {
+  income: [
+    "💰 Receita registrada!",
+    "📈 Saldo subindo!",
+    "🔥 Caixa mais forte!",
+    "👏 Boa entrada!",
+    "🚀 Dinheiro no jogo!"
+  ],
+  expense: [
+    "💸 Gasto anotado!",
+    "⚠️ Atenção ao saldo!",
+    "📉 Saiu do caixa!",
+    "😅 Esse foi necessário…",
+    "🧾 Controle é poder!"
+  ]
+};
+
+const ctx = document.getElementById("chart");
+const chart = new Chart(ctx, {
+  type: "pie",
+  data: {
+    labels: expenseCategories,
+    datasets: [{
+      data: Array(expenseCategories.length).fill(0),
+      backgroundColor: [
+        "#16a34a","#22c55e","#4ade80",
+        "#fde047","#facc15","#86efac",
+        "#bbf7d0","#65a30d","#4d7c0f"
+      ]
+    }]
+  }
+});
+
+function updateUI() {
+  const income = items.filter(i=>i.type==="income").reduce((a,b)=>a+b.value,0);
+  const expense = items.filter(i=>i.type==="expense").reduce((a,b)=>a+b.value,0);
+  const balance = income - expense;
+
+  document.getElementById("balance").innerText =
+    `R$ ${balance.toFixed(2).replace('.',',')}`;
+
+  expenseCategories.forEach((cat,i)=>{
+    chart.data.datasets[0].data[i] =
+      items.filter(it=>it.type==="expense" && it.category===cat)
+           .reduce((a,b)=>a+b.value,0);
+  });
+  chart.update();
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  items.forEach((item,index)=>{
+    list.innerHTML += `
+      <li class="flex justify-between items-center">
+        <span>
+          ${item.type === "income" ? "➕" : "➖"}
+          ${item.category} - R$ ${item.value.toFixed(2)}
+        </span>
+        <button onclick="removeItem(${index})" class="text-red-500">✕</button>
+      </li>`;
+  });
+}
+
+function openModal(type){
+  currentType = type;
+  selectedCategory = "";
+
+  document.getElementById("modalTitle").innerText =
+    type === "income" ? "Adicionar Receita" : "Adicionar Gasto";
+
+  const container = document.getElementById("categoryButtons");
+  container.innerHTML = "";
+
+  const categories = type === "income" ? incomeCategories : expenseCategories;
+
+  categories.forEach(cat=>{
+    const btn = document.createElement("button");
+    btn.innerText = cat;
+    btn.className = "border rounded-xl py-2 active:scale-95 transition";
+    btn.onclick = ()=> {
+      selectedCategory = cat;
+      [...container.children].forEach(b=>b.classList.remove("bg-green-200"));
+      btn.classList.add("bg-green-200");
+    };
+    container.appendChild(btn);
+  });
+
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function closeModal(){
+  document.getElementById("modal").classList.add("hidden");
+}
+
+function confirmAdd(){
+  const value = Number(document.getElementById("valueInput").value);
+  if(!value || !selectedCategory) return;
+
+  items.push({ value, category:selectedCategory, type:currentType });
+  document.getElementById("valueInput").value = "";
+  closeModal();
+  showMessage(currentType);
+  updateUI();
+}
+
+function removeItem(index){
+  items.splice(index,1);
+  updateUI();
+}
+
+function showMessage(type){
+  const el = document.getElementById("message");
+  el.innerText = messages[type][Math.floor(Math.random()*messages[type].length)];
+  gsap.fromTo(el,{opacity:0,y:10},{opacity:1,y:0});
+}
+</script>
+
+</body>
+</html>
